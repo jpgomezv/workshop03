@@ -34,5 +34,23 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
 
+  metabase:
+    image: metabase/metabase:latest
+    container_name: metabase
+    ports:
+      - "3000:3000"
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: happiness_predictions
+      MB_DB_PORT: 5432
+      MB_DB_USER: ${POSTGRES_USER}
+      MB_DB_PASS: ${POSTGRES_PASSWORD}
+      MB_DB_HOST: postgres
+    depends_on:
+      - postgres
+    volumes:
+      - metabase-data:/metabase-data
+
 volumes:
   postgres-data:
+  metabase-data:
