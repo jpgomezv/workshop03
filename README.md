@@ -71,7 +71,8 @@ workshop03/
 │   └── model_training.ipynb    # Part 2: Feature Engineering + Model Training
 ├── kafka/
 │   ├── producer.py             # Streams raw CSV data to Kafka topic
-│   └── consumer.py             # Validates, predicts, stores in DB
+│   ├── consumer.py             # Validates, predicts, stores in DB
+│   └── setup_metabase.py       # One-time Metabase admin + DB setup
 ├── models/
 │   └── model.pkl               # Serialized Random Forest (scikit-learn)
 ├── sql/
@@ -261,14 +262,17 @@ docker exec kafka kafka-topics --create \
   --partitions 1 --replication-factor 1
 docker exec -i postgres psql -U workshop -d happiness_predictions < sql/create_tables.sql
 
-# 6. Run the consumer (Terminal 1)
+# 6. Set up Metabase (admin account + database connection)
+uv run python kafka/setup_metabase.py
+
+# 7. Run the consumer (Terminal 1)
 uv run python kafka/consumer.py
 
-# 7. Run the producer (Terminal 2)
+# 8. Run the producer (Terminal 2)
 uv run python kafka/producer.py
 
-# 8. Open the dashboard at http://localhost:3000
-#    Credentials: admin@workshop.local / workshop123!
+# 9. Open the dashboard at http://localhost:3000
+#    Log in with: admin@workshop.local / workshop123!
 ```
 
 ### Reproducing Model Training (Optional)
