@@ -1,122 +1,143 @@
-# Workshop 3 — Streaming ETL with Apache Kafka and Machine Learning
+# World Happiness — Streaming ETL with Apache Kafka & ML
 
-**Course:** ETL (G01)  
-**Institution:** Faculty of Engineering and Basic Sciences — Data Engineering & AI
+![Python](https://img.shields.io/badge/python-3.12-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
+![PostgreSQL](https://img.shields.io/badge/postgresql-16-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white)
+![Apache Kafka](https://img.shields.io/badge/kafka-7.6.1-231F20?style=for-the-badge&logo=apache-kafka&logoColor=white)
+![Docker](https://img.shields.io/badge/docker-compose-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?style=for-the-badge&logo=scikit-learn&logoColor=white)
+![Metabase](https://img.shields.io/badge/metabase-509EE3?style=for-the-badge&logo=metabase&logoColor=white)
+![Pandas](https://img.shields.io/badge/pandas-%23150458.svg?style=for-the-badge&logo=pandas&logoColor=white)
 
-## Project Description
+> **Author:** Juan Pablo Gómez Veira  
+> **Course:** ETL | Data Engineering and Artificial Intelligence  
+> **Year:** 2026-1
 
-This project implements a streaming ETL pipeline that ingests raw World Happiness Report data (2015–2019), streams it through Apache Kafka, validates each event, and generates real-time happiness score predictions using a pre-trained Random Forest regression model. Results are stored in a PostgreSQL star-schema database and visualized through a Metabase dashboard.
+---
 
-The project demonstrates the transition from traditional batch ETL to event-driven streaming architectures, combining data profiling, machine learning, and real-time inference.
+## Project Overview
+
+This project implements a **streaming ETL pipeline** that ingests raw World Happiness Report data (2015–2019) through Apache Kafka, validates each event, runs real-time predictions using a pre-trained Random Forest regression model, and stores results in a PostgreSQL star-schema database. A Metabase dashboard visualizes the predictions and KPIs.
+
+The pipeline is fully containerized with Docker Compose and can be run with a single command.
+
+---
 
 ## Architecture
 
 The system is split into two independent processes:
 
-### Offline (Batch) — Part A
-```
-Raw CSV Files (2015–2019)
-    ↓
-EDA + Schema Harmonization
-    ↓
-Feature Engineering
-    ↓
-Model Training (Random Forest)
-    ↓
-Save model.pkl
+### Offline (Batch) — Model Training
+```mermaid
+flowchart LR
+    CSV[Raw CSVs 2015-2019] --> EDA[EDA + Schema Harmonization]
+    EDA --> FE[Feature Engineering]
+    FE --> Train[Train Random Forest]
+    Train --> Model[(model.pkl)]
 ```
 
-### Streaming (Real-time) — Part B
-```
-Raw CSV Files (2015–2019)
-    ↓
-Kafka Producer → streams each row as JSON
-    ↓
-Kafka Topic: happiness-predictions
-    ↓
-Kafka Consumer
-    ├── Store raw event in PostgreSQL
-    ├── Validate schema & values
-    ├── Load model.pkl
-    ├── Generate prediction
-    └── Store in star schema (dimensions + fact)
-    ↓
-Metabase Dashboard → queries PostgreSQL directly
+### Streaming (Real-time) — Inference Pipeline
+```mermaid
+flowchart LR
+    CSV2[Raw CSVs] --> Producer[Kafka Producer]
+    Producer --> Topic[Kafka Topic<br/>happiness-predictions]
+    Topic --> Consumer[Kafka Consumer]
+    Consumer --> Validate[Validate Event]
+    Validate -->|Invalid| Reject[Mark INVALID<br/>Skip Prediction]
+    Validate -->|Valid| Predict[Load model.pkl<br/>Generate Prediction]
+    Predict --> DB[(PostgreSQL<br/>Star Schema)]
+    DB --> Dashboard[Metabase Dashboard]
 ```
 
 ### Infrastructure
 ```
 Docker Compose
-├── Zookeeper (port 2181)
-├── Kafka Broker (port 9092)
-├── PostgreSQL 16 (port 5433)
-└── Metabase (port 3000)
+├── Zookeeper          (port 2181)
+├── Kafka Broker       (port 9092)
+├── PostgreSQL 16      (port 5433)
+└── Metabase           (port 3000)
 ```
 
-## Folder Structure
+---
+
+## Project Structure
 
 ```
 workshop03/
 ├── data/
-│   ├── raw/                  # Original CSVs (2015–2019)
-│   ├── processed/            # Harmonized dataset (output of EDA)
-│   └── streaming/            # (reserved)
+│   ├── raw/                    # Original CSVs (2015–2019)
+│   └── processed/              # Harmonized dataset (EDA notebook output)
 ├── notebooks/
-│   ├── eda.ipynb             # Part A Steps 1-2: EDA + Cleaning
-│   └── model_training.ipynb  # Part A Steps 3-4: Features + Training
+│   ├── eda.ipynb               # Part 1: EDA + Cleaning + Harmonization
+│   └── model_training.ipynb    # Part 2: Feature Engineering + Model Training
 ├── kafka/
-│   ├── producer.py           # Part B Step 5: Streams raw data to Kafka
-│   └── consumer.py           # Part B Step 6 + Part C: Validates, predicts, stores
+│   ├── producer.py             # Streams raw CSV data to Kafka topic
+│   └── consumer.py             # Validates, predicts, stores in DB
 ├── models/
-│   └── model.pkl             # Serialized Random Forest model
+│   └── model.pkl               # Serialized Random Forest (scikit-learn)
 ├── sql/
-│   ├── create_tables.sql     # Star schema DDL
-│   └── kpis.sql              # Dashboard KPI queries
-├── dashboards/               # Dashboard screenshots
-├── docker-compose.yml        # Zookeeper + Kafka + PostgreSQL + Metabase
-├── pyproject.toml            # uv project configuration
-├── requirements.txt          # Pinned dependencies
-└── README.md                 # This file
+│   ├── create_tables.sql       # Star schema DDL
+│   └── kpis.sql                # Dashboard KPI queries
+├── dashboards/
+│   └── Happiness Predictions KPIs.png   # Metabase dashboard screenshot
+├── docker-compose.yml          # All services (ZK, Kafka, PG, Metabase)
+├── .env                        # Environment variables (gitignored)
+├── .python-version             # Python 3.12
+├── pyproject.toml              # uv project configuration
+├── requirements.txt            # Pinned dependencies
+└── README.md                   # You are here
 ```
+
+---
 
 ## Data Cleaning Decisions
 
-The five CSV files (2015–2019) use **different column naming conventions** and contain **different sets of columns**:
+The five CSV files use different column naming conventions and contain different sets of columns across years. The key decisions were:
 
 | Issue | Decision | Justification |
 |---|---|---|
-| Column name variations (e.g., `Happiness Score` vs `Score` vs `Happiness.Score`) | Mapped to unified names (e.g., `happiness_score`) | 9 core concepts exist across all years, only naming differs |
-| Confidence measure columns (`Standard Error`, `Lower/Upper Confidence Interval`, `Whisker.high/low`) | Dropped | Each year uses a different metric — cannot be unified |
-| `Region` column (only in 2015–2016) | Dropped, continent added via `country_converter` | Missing from 2017–2019, replaced with continent for geographical analysis |
-| `Dystopia Residual` column (only 2015–2017) | Dropped | Not present in 2018–2019 |
-| 1 missing value in `corruption` (UAE 2018) | Filled with column mean (0.1254) in the harmonized dataset | Single missing value; mean is a reasonable imputation for this low-variance field |
-| Country name variants (e.g., "Hong Kong" vs "Hong Kong S.A.R., China") | Preserved as-is | Country is not a model feature; name variants don't affect prediction |
-| Zero values in health/gdp/freedom (5–6 rows) | Kept as genuine values | Represent genuinely low indicators for impoverished nations (e.g., Somalia GDP≈0) |
+| Column name variations (e.g., `Happiness Score` vs `Score` vs `Happiness.Score`) | Mapped to unified names | 9 core concepts exist across all years |
+| Confidence measure columns (`Standard Error`, `Lower/Upper CI`, `Whisker.high/low`) | Dropped | Each year uses a different metric — incompatible |
+| `Region` column (only 2015–2016) | Dropped, continent derived via `country_converter` | Missing from 2017–2019 |
+| `Dystopia Residual` (only 2015–2017) | Dropped | Not present in 2018–2019 |
+| 1 missing value in `corruption` (UAE 2018) | Filled with column mean (0.1254) | Single missing value; minimal impact on distribution |
+| Country name variants (e.g., "Hong Kong" vs "Hong Kong S.A.R., China") | Preserved as-is | Country is metadata, not a model feature |
+| Zero values in health/gdp/freedom (5–6 rows) | Kept as genuine | Represent real low indicators (e.g., Somalia GDP≈0) |
 
-## Feature Engineering Decisions
+---
+
+## Feature Engineering
 
 | Decision | Choice | Justification |
 |---|---|---|
-| Target | `happiness_score` | Workshop requirement |
-| Features (6) | `gdp, family, health, freedom, generosity, corruption` | Matches Kafka JSON format exactly; no continent lookup needed in consumer |
-| Excluded: `happiness_rank` | Target leakage | Correlation of -0.992 with target |
-| Excluded: `country` | 170 categories | Would explode features with one-hot encoding; not a causal predictor |
-| Excluded: `continent` | Optional but excluded | Adding continent improves R² by +0.04 but requires country→continent lookup in the consumer, adding pipeline complexity |
-| Excluded: `year` | Temporal metadata | Not a causal driver of happiness |
-| Scaling | `StandardScaler` applied after train/test split | Features are in 0–2 range; scaling ensures consistent handling |
+| **Target** | `happiness_score` | Workshop requirement |
+| **Features** (6) | `gdp, family, health, freedom, generosity, corruption` | Matches the Kafka JSON format; no continent lookup needed |
+| **Excluded:** `happiness_rank` | Target leakage | Correlation of -0.99 with target |
+| **Excluded:** `country` | 170 categories | Not a causal predictor |
+| **Excluded:** `continent` | Optional | Adding continent only improved R² by +0.04 but adds consumer complexity |
+| **Excluded:** `year` | Temporal metadata | Not a causal driver |
+| **Scaling** | `StandardScaler` (post-split) | Consistent handling across feature scales |
 
-Model used: **Random Forest Regressor** (100 estimators, max_depth=10, random_state=42)  
-Train/test split: **70% / 30%**  
-Metrics on test set: **R² ≈ 0.78, MAE ≈ 0.41, RMSE ≈ 0.52**
+### Model Performance
+
+| Model | R² | MAE | RMSE |
+|---|---|---|---|
+| Linear Regression | 0.74 | 0.43 | 0.57 |
+| Decision Tree | 0.72 | 0.49 | 0.59 |
+| **Random Forest** ✅ | **0.78** | **0.41** | **0.52** |
+
+**Selected model:** `RandomForestRegressor` (100 estimators, max_depth=10, random_state=42)  
+**Split:** 70% training / 30% testing
+
+---
 
 ## Kafka Pipeline
 
 ### Producer (`kafka/producer.py`)
 
 1. Reads raw CSV files from `data/raw/` (2015–2019)
-2. Maps columns to a unified schema matching the workshop-specified JSON format
-3. Converts numpy types to native Python (NaN → `null` in JSON)
-4. Streams each row one-by-one with 0.5s delay to Kafka topic `happiness-predictions`
+2. Maps different column names to a unified schema
+3. Converts numpy types to native Python (NaN → JSON `null`)
+4. Streams each row one-by-one to Kafka topic `happiness-predictions`
 
 **JSON format sent:**
 ```json
@@ -137,14 +158,14 @@ Metrics on test set: **R² ≈ 0.78, MAE ≈ 0.41, RMSE ≈ 0.52**
 
 Per-event processing flow:
 
-1. **Receive** message from Kafka topic
+1. **Receive** from Kafka topic
 2. **Store raw event** in `raw_happiness_events` (status = `RECEIVED`)
 3. **Populate** `dim_raw_event` dimension
-4. **Validate** event against required schema:
+4. **Validate** against required schema:
    - Missing fields → `INVALID_SCHEMA`
    - Wrong data types → `INVALID_SCHEMA`
    - Null/NaN in numeric fields → `INVALID_VALUES`
-5. **On failure** → update status, commit, skip prediction (never crashes)
+5. **On failure** → update status, commit, **skip prediction** (never crashes)
 6. **Extract features** in model order: `[gdp, family, health, freedom, generosity, corruption]`
 7. **Predict** using `model.pkl`
 8. **On prediction error** → mark `PREDICTION_ERROR`, skip
@@ -154,27 +175,21 @@ Per-event processing flow:
 
 ### Validation & Error Handling
 
-| Status | When | Action |
+| Status | Meaning | Action Taken |
 |---|---|---|
-| `RECEIVED` | Initial state | Event stored, not yet validated |
+| `RECEIVED` | Initial state after Kafka reception | Stored, not yet validated |
 | `VALID` | All checks passed | Prediction stored in fact table |
-| `INVALID_SCHEMA` | Missing field / wrong type | Stored in raw table, skipped |
-| `INVALID_VALUES` | Null in required field | Stored in raw table, skipped |
-| `PREDICTION_ERROR` | Model failed to predict | Stored in raw table, skipped |
+| `INVALID_SCHEMA` | Missing field or wrong type | Stored in raw table, prediction skipped |
+| `INVALID_VALUES` | Null in required numeric field | Stored in raw table, prediction skipped |
+| `PREDICTION_ERROR` | Model failed to predict | Stored in raw table, prediction skipped |
 
-**Real result from full run:** 782 raw events → 781 VALID predictions + 1 INVALID_VALUES (UAE 2018 — missing corruption value)
+**End-to-end result:** 782 raw events → 781 VALID predictions + 1 INVALID_VALUES (UAE 2018 — missing corruption value)
 
-## Database Schema (Star Schema)
+---
 
-### Tables
+## Database Schema
 
-| Table | Type | Rows (full run) | Purpose |
-|---|---|---|---|
-| `raw_happiness_events` | Raw | 782 | Original Kafka messages + processing status |
-| `dim_raw_event` | Dimension | 782 | Links fact to raw event metadata (id, status, received_at) |
-| `dim_country` | Dimension | 170 | Country dimension |
-| `dim_date` | Dimension | 5 | Year dimension |
-| `fact_predictions` | Fact | 781 | Prediction results linked to all dimensions |
+The database follows a **star schema** design for analytical performance.
 
 ### Entity Relationship
 
@@ -183,165 +198,105 @@ fact_predictions
 ├── raw_event_id  →  raw_happiness_events.raw_event_id
 ├── country_id    →  dim_country.country_id
 ├── date_id       →  dim_date.date_id
-└── (actual_score, predicted_score, prediction_error, prediction_timestamp)
+└── actual_score, predicted_score, prediction_error, prediction_timestamp
 
 dim_raw_event
 └── raw_event_id  →  raw_happiness_events.raw_event_id
 ```
 
-## Dashboard (Metabase)
+### Tables
 
-Metabase is included in the Docker Compose stack and connects directly to the PostgreSQL database.
-
-### Setup Steps
-
-1. Start all containers: `docker compose up -d`
-2. Open http://localhost:3000 in your browser
-3. Complete the Metabase initial setup (create admin account)
-4. Add the PostgreSQL database as a data source:
-   - Host: `postgres` (Docker internal network)
-   - Port: `5432`
-   - Database: `happiness_predictions`
-   - Username: `workshop`
-   - Password: `workshop`
-
-### KPI Queries
-
-The following SQL queries are available in `sql/kpis.sql`:
-
-**1. Average Prediction Error**
-```sql
-SELECT AVG(ABS(prediction_error)) AS mae
-FROM fact_predictions;
-```
-→ Display as a **single number** card
-
-**2. Predictions by Country**
-```sql
-SELECT c.country_name AS country,
-       COUNT(*) AS predictions,
-       AVG(ABS(fp.prediction_error)) AS avg_abs_error,
-       AVG(fp.actual_score) AS avg_actual,
-       AVG(fp.predicted_score) AS avg_predicted
-FROM fact_predictions fp
-JOIN dim_country c ON fp.country_id = c.country_id
-GROUP BY c.country_name
-ORDER BY predictions DESC;
-```
-→ Display as a **bar chart** or **table**
-
-**3. Predicted vs Actual Score**
-```sql
-SELECT c.country_name AS country,
-       d.year,
-       fp.actual_score,
-       fp.predicted_score,
-       fp.prediction_error
-FROM fact_predictions fp
-JOIN dim_country c ON fp.country_id = c.country_id
-JOIN dim_date d ON fp.date_id = d.date_id
-ORDER BY fp.actual_score DESC;
-```
-→ Display as a **scatter plot** (actual vs predicted)
-
-**4. Prediction Trends Over Time**
-```sql
-SELECT d.year,
-       AVG(fp.actual_score) AS avg_actual,
-       AVG(fp.predicted_score) AS avg_predicted,
-       AVG(ABS(fp.prediction_error)) AS avg_abs_error
-FROM fact_predictions fp
-JOIN dim_date d ON fp.date_id = d.date_id
-GROUP BY d.year
-ORDER BY d.year;
-```
-→ Display as a **line chart** (dual series: actual + predicted)
-
-### Dashboard Screenshots
-
-Place screenshots of the completed Metabase dashboard in the `dashboards/` folder.
+| Table | Type | Rows | Purpose |
+|---|---|---|---|
+| `raw_happiness_events` | Raw | 782 | Original Kafka messages + processing status |
+| `dim_raw_event` | Dimension | 782 | Links fact to raw event metadata |
+| `dim_country` | Dimension | 170 | Country dimension |
+| `dim_date` | Dimension | 5 | Year dimension |
+| `fact_predictions` | Fact | 781 | Prediction results linked to all dimensions |
 
 ---
 
-## Execution Instructions
+## Dashboard
+
+The dashboard was built with **Metabase** (self-hosted, connects directly to PostgreSQL). It provides four key performance indicators as specified by the workshop:
+
+1. **Average Prediction Error** — overall MAE across all predictions
+2. **Predictions by Country** — prediction count and average error per country
+3. **Predicted vs Actual Score** — scatter plot comparing predictions to ground truth
+4. **Trends Over Time** — average actual vs predicted scores from 2015–2019
+
+![Metabase Dashboard](dashboards/Happiness%20Predictions%20KPIs.png)
+
+---
+
+## Setup Instructions
 
 ### Prerequisites
-- Docker and Docker Compose
+
+- [Docker](https://docs.docker.com/engine/install/) and [Docker Compose](https://docs.docker.com/compose/install/) (v2+)
 - Python 3.12+
-- [uv](https://docs.astral.sh/uv/) package manager
+- [uv](https://docs.astral.sh/uv/) (fast Python package manager)
 
-### 1. Clone and install dependencies
+### Quick Start
+
 ```bash
+# 1. Clone the repository
+git clone https://github.com/YOUR_USERNAME/workshop03.git
 cd workshop03
+
+# 2. Install Python dependencies
 uv sync
-```
 
-### 2. Start infrastructure
-```bash
+# 3. Copy environment variables
+cp .env.example .env
+# Edit .env if needed (defaults work for local Docker setup)
+
+# 4. Start all services
 docker compose up -d
-```
 
-### 3. Create Kafka topic
-```bash
+# 5. Create Kafka topic and database tables
 docker exec kafka kafka-topics --create \
   --topic happiness-predictions \
   --bootstrap-server localhost:9092 \
   --partitions 1 --replication-factor 1
-```
-
-### 4. Initialize database tables
-```bash
 docker exec -i postgres psql -U workshop -d happiness_predictions < sql/create_tables.sql
+
+# 6. Run the consumer (Terminal 1)
+uv run python kafka/consumer.py
+
+# 7. Run the producer (Terminal 2)
+uv run python kafka/producer.py
+
+# 8. Open the dashboard at http://localhost:3000
+#    Credentials: admin@workshop.local / workshop123!
 ```
 
-### 5. Run Part A (optional — model is pre-trained)
+### Reproducing Model Training (Optional)
+
 ```bash
+# Run notebooks in order
 uv run jupyter notebook notebooks/eda.ipynb
 uv run jupyter notebook notebooks/model_training.ipynb
 ```
 
-### 6. Run the streaming pipeline
-```bash
-# Terminal 1 — Consumer
-uv run python kafka/consumer.py
+### Shutting Down
 
-# Terminal 2 — Producer  
-uv run python kafka/producer.py
-```
-
-### 7. Set up the dashboard
-Open http://localhost:3000 and configure Metabase as described in the Dashboard section above.
-
-### 8. Stop infrastructure
 ```bash
 docker compose down
 ```
 
 ---
 
-## Technical Requirements
+## Tech Stack
 
 | Component | Technology |
 |---|---|
-| Streaming | Apache Kafka (Confluent 7.6.1) |
-| Database | PostgreSQL 16 |
-| ML Model | Random Forest Regressor (scikit-learn) |
-| Dashboard | Metabase |
-| Producer/Consumer | Python (kafka-python-ng) |
-| DB Connection | SQLAlchemy + psycopg2 |
-| Containerization | Docker Compose |
-| Package Management | uv |
-
-## Evaluation Criteria
-
-| Criteria | Weight |
-|---|---|
-| Data Integration & Cleaning | 1.0 |
-| Feature Engineering | 0.5 |
-| ML Pipeline | 0.5 |
-| Kafka Producer | 0.5 |
-| Kafka Consumer | 0.5 |
-| Event Validation | 0.5 |
-| Database Design & Loading | 0.5 |
-| Dashboard & KPIs | 0.5 |
-| Documentation & Reproducibility | 0.5 |
+| **Streaming** | Apache Kafka (Confluent 7.6.1) |
+| **Database** | PostgreSQL 16 |
+| **ML Model** | Random Forest Regressor (scikit-learn) |
+| **Dashboard** | Metabase |
+| **Producer/Consumer** | Python (kafka-python-ng) |
+| **DB Connection** | SQLAlchemy + psycopg2 |
+| **EDA & Training** | Jupyter, Pandas, Matplotlib, Seaborn, Plotly |
+| **Containerization** | Docker Compose |
+| **Package Manager** | uv |

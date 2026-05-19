@@ -6,17 +6,14 @@ dist/
 wheels/
 *.egg-info
 
-# Virtual environments
-.venv
+# Virtual environment
+.venv/
 
-# Environment variables
+# Environment variables (contains credentials)
 .env
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
-
-# Model files
-models/*.pkl
 
 # OS files
 .DS_Store
@@ -25,3 +22,6 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Logs
+*.log
