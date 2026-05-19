@@ -8,13 +8,14 @@ FROM fact_predictions;
 SELECT
     c.country_name,
     COUNT(*) AS prediction_count,
-    AVG(fp.prediction_error) AS avg_error,
     AVG(fp.actual_score) AS avg_actual,
     AVG(fp.predicted_score) AS avg_predicted
 FROM fact_predictions fp
 JOIN dim_country c ON fp.country_id = c.country_id
 GROUP BY c.country_name
-ORDER BY prediction_count DESC;
+ORDER BY prediction_count DESC
+LIMIT 20;
+
 
 -- 3. Predicted vs actual score
 SELECT
