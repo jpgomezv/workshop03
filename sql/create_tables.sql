@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS raw_happiness_events (
     corruption FLOAT,
     actual_happiness_score FLOAT,
     raw_payload JSONB,
-    processing_status VARCHAR(50) NOT NULL DEFAULT 'VALID',
+    processing_status VARCHAR(50) NOT NULL DEFAULT 'RECEIVED',
     received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
