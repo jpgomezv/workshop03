@@ -24,6 +24,7 @@ Validation categories:
 import json
 import logging
 import os
+import time
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,7 +32,7 @@ from pathlib import Path
 import joblib
 from dotenv import load_dotenv
 from kafka import KafkaConsumer
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, exc, text
 
 warnings.filterwarnings("ignore", message="X does not have valid feature names")
 
@@ -182,6 +183,24 @@ def insert_dim_raw_event(conn, raw_event_id: int) -> None:
     )
 
 
+def create_db_engine_with_retry(db_url: str, max_retries: int = 5):
+    """Create a SQLAlchemy engine with retry logic for transient connection failures."""
+    for attempt in range(1, max_retries + 1):
+        try:
+            engine = create_engine(db_url)
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            logger.info("Database connection established.")
+            return engine
+        except exc.OperationalError as e:
+            if attempt == max_retries:
+                raise
+            delay = 2 ** attempt
+            logger.warning("DB connection attempt %d/%d failed: %s. Retrying in %ds...",
+                           attempt, max_retries, e, delay)
+            time.sleep(delay)
+
+
 def upsert_dim_country(conn, country_name: str) -> int:
     """Insert or get country dimension id."""
     result = conn.execute(
@@ -256,7 +275,7 @@ def consume_events() -> None:
     model = joblib.load(MODEL_PATH)
     logger.info("Model loaded (type=%s, features=%d)", type(model).__name__, len(FEATURE_ORDER))
 
-    engine = create_engine(DB_URL)
+    engine = create_db_engine_with_retry(DB_URL)
 
     consumer = KafkaConsumer(
         TOPIC,
@@ -274,82 +293,129 @@ def consume_events() -> None:
     invalid_schema = 0
     invalid_values = 0
     prediction_errors = 0
+    db_errors = 0
+
+    def get_conn():
+        for retry in range(3):
+            try:
+                return engine.connect()
+            except exc.OperationalError as e:
+                logger.warning("DB connection lost. Reconnecting (%d/3): %s", retry + 1, e)
+                time.sleep(2 ** retry)
+        raise RuntimeError("Could not reconnect to database after 3 attempts")
 
     try:
-        with engine.connect() as conn:
-            for msg in consumer:
-                event = msg.value
-                country = event.get("country", "?")
-                year = event.get("year", "?")
-                logger.info("Received: %s (%s)", country, year)
+        conn = get_conn()
+        for msg in consumer:
+            event = msg.value
+            country = event.get("country", "?")
+            year = event.get("year", "?")
+            logger.info("Received: %s (%s)", country, year)
 
+            try:
                 # Step 1: Store raw event immediately (before any validation)
-                try:
-                    raw_event_id = insert_raw_event(conn, event)
-                    insert_dim_raw_event(conn, raw_event_id)
-                    conn.commit()
-                except Exception as exc:
-                    logger.error("Failed to insert raw event: %s", exc)
-                    conn.rollback()
-                    consumer.commit()
-                    continue
+                raw_event_id = insert_raw_event(conn, event)
+                insert_dim_raw_event(conn, raw_event_id)
+                conn.commit()
+            except exc.OperationalError:
+                conn.close()
+                conn = get_conn()
+                db_errors += 1
+                logger.warning("DB error — reconnected. Skipping event: %s", country)
+                consumer.commit()
+                continue
+            except Exception as exc:
+                logger.error("Failed to insert raw event: %s", exc)
+                conn.rollback()
+                consumer.commit()
+                continue
 
-                # Step 2: Validate event schema and values
-                is_valid, error_type, detail = validate_event(event)
-                if not is_valid:
+            # Step 2: Validate event schema and values
+            is_valid, error_type, detail = validate_event(event)
+            if not is_valid:
+                try:
                     update_raw_status(conn, raw_event_id, error_type)
                     conn.commit()
-                    if error_type == "INVALID_SCHEMA":
-                        invalid_schema += 1
-                    else:
-                        invalid_values += 1
-                    logger.warning("REJECTED (%s): %s — %s", error_type, country, detail)
-                    consumer.commit()
-                    continue
+                except exc.OperationalError:
+                    conn.close()
+                    conn = get_conn()
+                    update_raw_status(conn, raw_event_id, error_type)
+                    conn.commit()
+                if error_type == "INVALID_SCHEMA":
+                    invalid_schema += 1
+                else:
+                    invalid_values += 1
+                logger.warning("REJECTED (%s): %s — %s", error_type, country, detail)
+                consumer.commit()
+                continue
 
-                # Step 3: Extract features and predict
+            # Step 3: Extract features and predict
+            try:
+                features = extract_features(event)
+                predicted_score = float(model.predict(features)[0])
+            except Exception as exc:
                 try:
-                    features = extract_features(event)
-                    predicted_score = float(model.predict(features)[0])
-                except Exception as exc:
                     update_raw_status(conn, raw_event_id, "PREDICTION_ERROR")
                     conn.commit()
-                    prediction_errors += 1
-                    logger.error("Prediction failed for %s (%s): %s", country, year, exc)
-                    consumer.commit()
-                    continue
-
-                # Step 4: Store dimensions and prediction result
-                try:
-                    country_id = upsert_dim_country(conn, event["country"])
-                    date_id = upsert_dim_date(conn, event["year"])
-                    insert_fact_prediction(
-                        conn,
-                        raw_event_id,
-                        country_id,
-                        date_id,
-                        float(event["actual_happiness_score"]),
-                        predicted_score,
-                    )
-                except Exception as exc:
+                except exc.OperationalError:
+                    conn.close()
+                    conn = get_conn()
                     update_raw_status(conn, raw_event_id, "PREDICTION_ERROR")
                     conn.commit()
-                    prediction_errors += 1
-                    logger.error("Failed to store prediction for %s: %s", country, exc)
-                    consumer.commit()
-                    continue
+                prediction_errors += 1
+                logger.error("Prediction failed for %s (%s): %s", country, year, exc)
+                consumer.commit()
+                continue
 
-                # Step 5: Mark as valid
+            # Step 4: Store dimensions and prediction result
+            try:
+                country_id = upsert_dim_country(conn, event["country"])
+                date_id = upsert_dim_date(conn, event["year"])
+                insert_fact_prediction(
+                    conn, raw_event_id, country_id, date_id,
+                    float(event["actual_happiness_score"]), predicted_score,
+                )
+            except exc.OperationalError:
+                conn.close()
+                conn = get_conn()
+                update_raw_status(conn, raw_event_id, "PREDICTION_ERROR")
+                conn.commit()
+                prediction_errors += 1
+                db_errors += 1
+                logger.error("DB error during prediction storage for %s", country)
+                consumer.commit()
+                continue
+            except Exception as exc:
+                try:
+                    update_raw_status(conn, raw_event_id, "PREDICTION_ERROR")
+                    conn.commit()
+                except exc.OperationalError:
+                    conn.close()
+                    conn = get_conn()
+                    update_raw_status(conn, raw_event_id, "PREDICTION_ERROR")
+                    conn.commit()
+                prediction_errors += 1
+                logger.error("Failed to store prediction for %s: %s", country, exc)
+                consumer.commit()
+                continue
+
+            # Step 5: Mark as valid
+            try:
                 update_raw_status(conn, raw_event_id, "VALID")
                 conn.commit()
-                processed += 1
-                actual = event["actual_happiness_score"]
-                error = actual - predicted_score
-                logger.info(
-                    "VALID | %s (%s) | actual=%.3f predicted=%.3f error=%+.3f",
-                    country, year, actual, predicted_score, error,
-                )
-                consumer.commit()
+            except exc.OperationalError:
+                conn.close()
+                conn = get_conn()
+                update_raw_status(conn, raw_event_id, "VALID")
+                conn.commit()
+            processed += 1
+            actual = event["actual_happiness_score"]
+            error = actual - predicted_score
+            logger.info(
+                "VALID | %s (%s) | actual=%.3f predicted=%.3f error=%+.3f",
+                country, year, actual, predicted_score, error,
+            )
+            consumer.commit()
 
     except KeyboardInterrupt:
         logger.warning("Consumer stopped by user.")
@@ -357,8 +423,9 @@ def consume_events() -> None:
         consumer.close()
         engine.dispose()
         logger.info(
-            "Summary → processed: %d | invalid_schema: %d | invalid_values: %d | prediction_errors: %d",
-            processed, invalid_schema, invalid_values, prediction_errors,
+            "Summary → processed: %d | invalid_schema: %d | invalid_values: %d | "
+            "prediction_errors: %d | db_errors: %d",
+            processed, invalid_schema, invalid_values, prediction_errors, db_errors,
         )
 
 
