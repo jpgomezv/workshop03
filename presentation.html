@@ -1,0 +1,1784 @@
+<!DOCTYPE html>
+<html lang="en">
+<!--
+  Workshop 3 — Streaming ETL with Apache Kafka & ML
+  Dark Swiss Modern · Catppuccin Mocha palette
+  Built for a ~15 minute video presentation
+-->
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Streaming ETL with Apache Kafka &amp; ML — Workshop 3</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=Nunito:wght@300;400;500;600&display=swap"
+    rel="stylesheet">
+  <style>
+    /* ===========================================
+   CSS CUSTOM PROPERTIES — Catppuccin Mocha
+   =========================================== */
+    :root {
+      --ctp-base: #1e1e2e;
+      --ctp-mantle: #181825;
+      --ctp-crust: #11111b;
+      --ctp-surface0: #313244;
+      --ctp-surface1: #45475a;
+      --ctp-surface2: #585b70;
+      --ctp-text: #cdd6f4;
+      --ctp-subtext0: #a6adc8;
+      --ctp-subtext1: #bac2de;
+      --ctp-blue: #89b4fa;
+      --ctp-mauve: #cba6f7;
+      --ctp-teal: #94e2d5;
+      --ctp-pink: #f5c2e7;
+      --ctp-red: #f38ba8;
+      --ctp-peach: #fab387;
+      --ctp-green: #a6e3a1;
+      --ctp-yellow: #f9e2af;
+
+      --bg-primary: var(--ctp-base);
+      --bg-secondary: var(--ctp-mantle);
+      --bg-surface: var(--ctp-surface0);
+      --bg-code: var(--ctp-crust);
+      --text-primary: var(--ctp-text);
+      --text-secondary: var(--ctp-subtext0);
+      --accent: var(--ctp-blue);
+      --accent2: var(--ctp-mauve);
+      --accent3: var(--ctp-teal);
+      --accent4: var(--ctp-pink);
+      --warn: var(--ctp-red);
+      --success: var(--ctp-green);
+      --highlight: var(--ctp-yellow);
+
+      --font-display: 'Archivo', sans-serif;
+      --font-body: 'Nunito', sans-serif;
+      --title-size: clamp(1.6rem, 5vw, 4rem);
+      --h2-size: clamp(1.2rem, 3.5vw, 2.4rem);
+      --h3-size: clamp(1rem, 2.5vw, 1.6rem);
+      --body-size: clamp(0.75rem, 1.4vw, 1.05rem);
+      --small-size: clamp(0.6rem, 0.9vw, 0.8rem);
+      --code-size: clamp(0.65rem, 1vw, 0.85rem);
+      --slide-padding: clamp(1.5rem, 4vw, 4rem);
+      --content-gap: clamp(0.5rem, 2vw, 1.5rem);
+      --element-gap: clamp(0.25rem, 1vw, 0.75rem);
+      --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* ===========================================
+   VIEWPORT BASE — REQUIRED
+   =========================================== */
+    *,
+    *::before,
+    *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
+
+    html,
+    body {
+      height: 100%;
+      overflow-x: hidden;
+      background: var(--ctp-base);
+      font-family: var(--font-body);
+      color: var(--text-primary)
+    }
+
+    html {
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth
+    }
+
+    .slide {
+      width: 100vw;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      scroll-snap-align: start;
+      display: flex;
+      flex-direction: column;
+      position: relative
+    }
+
+    .slide-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      max-height: 100%;
+      overflow: hidden;
+      padding: var(--slide-padding);
+      position: relative
+    }
+
+    img,
+    .image-container {
+      max-width: 100%;
+      max-height: min(50vh, 400px);
+      object-fit: contain
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+      gap: clamp(0.5rem, 1.5vw, 1.5rem)
+    }
+
+    .card {
+      max-width: min(90vw, 1000px);
+      max-height: min(80vh, 700px);
+      background: var(--bg-surface);
+      border-radius: clamp(6px, 1vw, 12px);
+      padding: clamp(1rem, 2vw, 2rem);
+      border: 1px solid var(--ctp-surface1)
+    }
+
+    /* ===========================================
+   SWISS MODERN · DARK STYLE
+   =========================================== */
+    h1 {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: var(--title-size);
+      color: var(--text-primary);
+      line-height: 1.1;
+      letter-spacing: -0.02em
+    }
+
+    h1 em {
+      font-style: normal;
+      color: var(--accent)
+    }
+
+    h2 {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: var(--h2-size);
+      color: var(--text-primary);
+      line-height: 1.2
+    }
+
+    h2 em {
+      font-style: normal;
+      color: var(--accent2)
+    }
+
+    h3 {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: var(--h3-size);
+      color: var(--accent3);
+      margin-bottom: var(--element-gap)
+    }
+
+    p,
+    li {
+      font-size: var(--body-size);
+      line-height: 1.55;
+      color: var(--text-secondary)
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none
+    }
+
+    /* Grid overlay on every slide */
+    .slide::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: linear-gradient(rgba(205, 214, 244, 0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(205, 214, 244, 0.02) 1px, transparent 1px);
+      background-size: clamp(20px, 3vw, 48px) clamp(20px, 3vw, 48px);
+      pointer-events: none;
+      z-index: 0
+    }
+
+    .slide-content>* {
+      position: relative;
+      z-index: 1
+    }
+
+    /* Accent bar — Swiss Modern signature */
+    .accent-bar {
+      position: absolute;
+      left: 0;
+      top: var(--slide-padding);
+      width: clamp(3px, 0.4vw, 5px);
+      height: clamp(2.5rem, 5vw, 5rem);
+      background: var(--accent);
+      border-radius: 0 2px 2px 0
+    }
+
+    .accent-bar-right {
+      position: absolute;
+      right: 0;
+      top: var(--slide-padding);
+      width: clamp(3px, 0.4vw, 5px);
+      height: clamp(2.5rem, 5vw, 5rem);
+      background: var(--accent2);
+      border-radius: 2px 0 0 2px
+    }
+
+    /* Title slide */
+    .title-slide .slide-content {
+      text-align: center
+    }
+
+    .title-slide h1 {
+      font-size: var(--title-size)
+    }
+
+    .title-slide .subtitle {
+      font-size: var(--body-size);
+      color: var(--text-secondary);
+      margin-top: var(--content-gap);
+      max-width: min(70vw, 650px);
+      margin-left: auto;
+      margin-right: auto
+    }
+
+    .title-slide .meta {
+      font-family: var(--font-body);
+      font-size: var(--small-size);
+      color: var(--ctp-surface2);
+      margin-top: var(--content-gap);
+      text-transform: uppercase;
+      letter-spacing: 0.12em
+    }
+
+    .title-slide .circle {
+      position: absolute;
+      bottom: clamp(1rem, 3vw, 3rem);
+      right: clamp(1rem, 3vw, 3rem);
+      width: clamp(40px, 8vw, 80px);
+      height: clamp(40px, 8vw, 80px);
+      border: clamp(2px, 0.3vw, 4px) solid var(--accent);
+      border-radius: 50%
+    }
+
+    /* Agenda */
+    .agenda-list {
+      display: flex;
+      flex-direction: column;
+      gap: clamp(0.3rem, 0.8vh, 0.6rem);
+      max-width: min(80vw, 700px)
+    }
+
+    .agenda-item {
+      display: flex;
+      align-items: baseline;
+      gap: clamp(0.5rem, 1vw, 1rem);
+      font-size: var(--body-size)
+    }
+
+    .agenda-num {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: var(--h3-size);
+      color: var(--accent);
+      min-width: clamp(1.5rem, 3vw, 2.5rem);
+      text-align: right
+    }
+
+    /* Feature lists */
+    .bullet-list {
+      display: flex;
+      flex-direction: column;
+      gap: clamp(0.3rem, 0.8vh, 0.7rem);
+      max-width: min(80vw, 750px);
+      list-style: none
+    }
+
+    .bullet-list li {
+      padding-left: clamp(1rem, 2vw, 1.8rem);
+      position: relative
+    }
+
+    .bullet-list li::before {
+      content: '·';
+      position: absolute;
+      left: 0;
+      color: var(--accent);
+      font-weight: 700
+    }
+
+    /* Two-column layout */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(1rem, 2vw, 2rem);
+      max-width: min(90vw, 1000px)
+    }
+
+    .two-col-wide {
+      grid-template-columns: 1fr 1.2fr
+    }
+
+    /* Code blocks */
+    .code-block {
+      background: var(--bg-code);
+      border-radius: clamp(4px, 0.8vw, 8px);
+      padding: clamp(0.8rem, 1.5vw, 1.5rem);
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: var(--code-size);
+      line-height: 1.5;
+      color: var(--text-primary);
+      overflow: hidden;
+      border: 1px solid var(--ctp-surface1);
+      max-width: min(90vw, 800px)
+    }
+
+    .code-block .kw {
+      color: var(--ctp-mauve)
+    }
+
+    .code-block .str {
+      color: var(--accent3)
+    }
+
+    .code-block .cmt {
+      color: var(--ctp-surface2)
+    }
+
+    .code-block .num {
+      color: var(--ctp-peach)
+    }
+
+    .code-block .fn {
+      color: var(--accent)
+    }
+
+    /* Table styling */
+    .data-table {
+      width: 100%;
+      max-width: min(85vw, 900px);
+      border-collapse: collapse;
+      font-size: var(--small-size)
+    }
+
+    .data-table th {
+      text-align: left;
+      color: var(--accent);
+      font-family: var(--font-display);
+      font-weight: 700;
+      padding: clamp(0.3rem, 0.8vh, 0.6rem) clamp(0.4rem, 1vw, 0.8rem);
+      border-bottom: 2px solid var(--ctp-surface1)
+    }
+
+    .data-table td {
+      padding: clamp(0.3rem, 0.8vh, 0.5rem) clamp(0.4rem, 1vw, 0.8rem);
+      border-bottom: 1px solid var(--ctp-surface0);
+      color: var(--text-secondary)
+    }
+
+    .data-table td.hl {
+      color: var(--accent);
+      font-weight: 600
+    }
+
+    /* Stat card grid */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: clamp(0.5rem, 1vw, 1rem);
+      max-width: min(80vw, 750px)
+    }
+
+    .stat-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--ctp-surface1);
+      border-radius: clamp(4px, 0.8vw, 8px);
+      padding: clamp(0.8rem, 1.5vw, 1.5rem);
+      text-align: center
+    }
+
+    .stat-card .value {
+      font-family: var(--font-display);
+      font-size: var(--h2-size);
+      color: var(--accent);
+      font-weight: 800
+    }
+
+    .stat-card .label {
+      font-size: var(--small-size);
+      color: var(--text-secondary);
+      margin-top: clamp(0.2rem, 0.5vh, 0.4rem)
+    }
+
+    /* Architecture diagram boxes */
+    .arch-flow {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: clamp(0.3rem, 0.6vh, 0.6rem);
+      max-width: min(60vw, 500px)
+    }
+
+    .arch-box {
+      background: var(--bg-surface);
+      border: 1px solid var(--ctp-surface1);
+      border-radius: clamp(4px, 0.8vw, 8px);
+      padding: clamp(0.5rem, 1vw, 0.9rem) clamp(0.8rem, 1.5vw, 1.5rem);
+      text-align: center;
+      font-size: var(--body-size);
+      color: var(--text-primary);
+      width: 100%
+    }
+
+    .arch-box.accent {
+      border-color: var(--accent);
+      background: rgba(137, 180, 250, 0.08)
+    }
+
+    .arch-arrow {
+      color: var(--ctp-surface2);
+      font-size: var(--body-size)
+    }
+
+    .arch-flow-h {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(0.3rem, 0.5vw, 0.5rem);
+      flex-wrap: wrap
+    }
+
+    .arch-arrow-h {
+      color: var(--ctp-surface2);
+      font-size: var(--h3-size)
+    }
+
+    /* Flow diagram for consumer */
+    .flow-list {
+      display: flex;
+      flex-direction: column;
+      gap: clamp(0.15rem, 0.3vh, 0.3rem);
+      max-width: min(70vw, 550px);
+      list-style: none
+    }
+
+    .flow-list li {
+      display: flex;
+      align-items: center;
+      gap: clamp(0.4rem, 0.8vw, 0.6rem);
+      font-size: var(--body-size);
+      color: var(--text-secondary)
+    }
+
+    .flow-num {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: var(--body-size);
+      color: var(--accent);
+      min-width: clamp(1rem, 2vw, 1.4rem)
+    }
+
+    /* Section header */
+    .section-header {
+      font-family: var(--font-body);
+      font-size: var(--small-size);
+      color: var(--accent2);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: var(--element-gap)
+    }
+
+    .section-header em {
+      font-style: normal;
+      color: var(--accent)
+    }
+
+    /* Badge/pill */
+    .badge {
+      display: inline-block;
+      background: rgba(137, 180, 250, 0.12);
+      color: var(--accent);
+      font-family: var(--font-body);
+      font-size: var(--small-size);
+      padding: clamp(2px, 0.3vw, 4px) clamp(6px, 0.8vw, 12px);
+      border-radius: 999px;
+      font-weight: 600
+    }
+
+    .badge.green {
+      background: rgba(166, 227, 161, 0.12);
+      color: var(--success)
+    }
+
+    .badge.red {
+      background: rgba(243, 139, 168, 0.12);
+      color: var(--warn)
+    }
+
+    .badge.mauve {
+      background: rgba(203, 166, 247, 0.12);
+      color: var(--mauve)
+    }
+
+    /* Thank you slide */
+    .thankyou-slide .slide-content {
+      text-align: center
+    }
+
+    .thankyou-slide h1 {
+      font-size: var(--title-size)
+    }
+
+    /* Schema table */
+    .schema-table {
+      width: 100%;
+      max-width: min(88vw, 950px);
+      border-collapse: collapse;
+      font-size: var(--small-size)
+    }
+
+    .schema-table th {
+      text-align: left;
+      color: var(--accent);
+      font-family: var(--font-display);
+      font-weight: 700;
+      padding: clamp(0.3rem, 0.8vh, 0.5rem) clamp(0.4rem, 1vw, 0.6rem);
+      border-bottom: 2px solid var(--ctp-surface1);
+      font-size: var(--small-size)
+    }
+
+    .schema-table td {
+      padding: clamp(0.3rem, 0.8vh, 0.4rem) clamp(0.4rem, 1vw, 0.6rem);
+      border-bottom: 1px solid var(--ctp-surface0);
+      color: var(--text-secondary);
+      font-size: var(--small-size)
+    }
+
+    /* Status badges */
+    .status {
+      font-family: var(--font-body);
+      font-size: var(--small-size);
+      padding: clamp(1px, 0.2vw, 3px) clamp(5px, 0.6vw, 10px);
+      border-radius: 999px;
+      font-weight: 600
+    }
+
+    .status.valid {
+      background: rgba(166, 227, 161, 0.15);
+      color: var(--success)
+    }
+
+    .status.invalid {
+      background: rgba(243, 139, 168, 0.15);
+      color: var(--warn)
+    }
+
+    .status.error {
+      background: rgba(250, 179, 135, 0.15);
+      color: var(--ctp-peach)
+    }
+
+    /* ===========================================
+   ANIMATIONS
+   =========================================== */
+    .reveal {
+      opacity: 0;
+      transform: translateY(25px);
+      transition: opacity 0.6s var(--ease-out-expo), transform 0.6s var(--ease-out-expo)
+    }
+
+    .slide.visible .reveal {
+      opacity: 1;
+      transform: translateY(0)
+    }
+
+    .reveal:nth-child(1) {
+      transition-delay: 0.05s
+    }
+
+    .reveal:nth-child(2) {
+      transition-delay: 0.12s
+    }
+
+    .reveal:nth-child(3) {
+      transition-delay: 0.19s
+    }
+
+    .reveal:nth-child(4) {
+      transition-delay: 0.26s
+    }
+
+    .reveal:nth-child(5) {
+      transition-delay: 0.33s
+    }
+
+    .reveal:nth-child(6) {
+      transition-delay: 0.40s
+    }
+
+    .reveal:nth-child(7) {
+      transition-delay: 0.47s
+    }
+
+    .reveal:nth-child(8) {
+      transition-delay: 0.54s
+    }
+
+    .reveal:nth-child(9) {
+      transition-delay: 0.61s
+    }
+
+    .reveal:nth-child(10) {
+      transition-delay: 0.68s
+    }
+
+    /* ===========================================
+   PROGRESS BAR + NAV DOTS
+   =========================================== */
+    .progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: clamp(2px, 0.3vw, 3px);
+      background: var(--accent);
+      z-index: 100;
+      transition: width 0.3s ease
+    }
+
+    .nav-dots {
+      position: fixed;
+      right: clamp(8px, 1.5vw, 16px);
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: clamp(4px, 0.8vw, 8px);
+      z-index: 100
+    }
+
+    .nav-dot {
+      width: clamp(6px, 0.9vw, 10px);
+      height: clamp(6px, 0.9vw, 10px);
+      border-radius: 50%;
+      background: var(--ctp-surface1);
+      border: none;
+      cursor: pointer;
+      transition: background 0.3s;
+      padding: 0
+    }
+
+    .nav-dot.active {
+      background: var(--accent)
+    }
+
+    /* ===========================================
+   RESPONSIVE BREAKPOINTS
+   =========================================== */
+    @media(max-height:700px) {
+      :root {
+        --slide-padding: clamp(0.75rem, 3vw, 2rem);
+        --content-gap: clamp(0.4rem, 1.5vw, 1rem);
+        --title-size: clamp(1.25rem, 4.5vw, 2.5rem);
+        --h2-size: clamp(1rem, 3vw, 1.75rem)
+      }
+    }
+
+    @media(max-height:600px) {
+      :root {
+        --slide-padding: clamp(0.5rem, 2.5vw, 1.5rem);
+        --content-gap: clamp(0.3rem, 1vw, 0.75rem);
+        --title-size: clamp(1.1rem, 4vw, 2rem);
+        --body-size: clamp(0.7rem, 1.2vw, 0.95rem)
+      }
+
+      .nav-dots {
+        display: none
+      }
+    }
+
+    @media(max-height:500px) {
+      :root {
+        --slide-padding: clamp(0.4rem, 2vw, 1rem);
+        --title-size: clamp(1rem, 3.5vw, 1.5rem);
+        --h2-size: clamp(0.9rem, 2.5vw, 1.25rem);
+        --body-size: clamp(0.65rem, 1vw, 0.85rem)
+      }
+    }
+
+    @media(max-width:600px) {
+      :root {
+        --title-size: clamp(1.25rem, 7vw, 2.5rem)
+      }
+
+      .grid {
+        grid-template-columns: 1fr
+      }
+
+      .two-col {
+        grid-template-columns: 1fr
+      }
+
+      .stat-grid {
+        grid-template-columns: 1fr 1fr
+      }
+
+      .nav-dots {
+        display: none
+      }
+    }
+
+    @media(prefers-reduced-motion:reduce) {
+
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.2s !important
+      }
+
+      html {
+        scroll-behavior: auto
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="progress-bar"></div>
+  <nav class="nav-dots" id="navDots"></nav>
+
+  <!-- ============================================================
+     SLIDE 1 — TITLE
+     ============================================================ -->
+  <section class="slide title-slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">Workshop 3 · ETL G01</p>
+      <h1 class="reveal">Streaming ETL <em>with</em><br>Apache Kafka &amp; ML</h1>
+      <p class="reveal subtitle">Building a real-time prediction pipeline from raw CSV ingestion to dashboard analytics
+        —<br>World Happiness Report 2015–2019</p>
+      <p class="reveal meta">Data Engineering & Artificial Intelligence · 2026-1</p>
+      <div class="reveal circle"></div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 2 — AGENDA
+     ============================================================ -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">Agenda</p>
+      <h2 class="reveal">What We'll Cover</h2>
+      <div class="reveal agenda-list" style="margin-top:var(--content-gap)">
+        <div class="agenda-item"><span class="agenda-num">1</span> Dataset &amp; Architecture Overview</div>
+        <div class="agenda-item"><span class="agenda-num">2</span> Part A — Data Profiling &amp; Machine Learning</div>
+        <div class="agenda-item"><span class="agenda-num">3</span> Part B — Streaming ETL with Apache Kafka</div>
+        <div class="agenda-item"><span class="agenda-num">4</span> Part C — Prediction Storage &amp; Analytics</div>
+        <div class="agenda-item"><span class="agenda-num">5</span> Results, Dashboard &amp; Key Takeaways</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 3 — WORKSHOP GOAL
+     ============================================================ -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">Workshop Goal</p>
+      <h2 class="reveal">Design and implement a <em>streaming ETL pipeline</em> capable of generating real-time
+        predictions using Apache Kafka and a pre-trained machine learning model.</h2>
+      <div class="reveal" style="display:flex;gap:clamp(1rem,2vw,2rem);margin-top:var(--content-gap)">
+        <ul class="bullet-list" style="flex:1">
+          <li>Integrate 5 heterogeneous CSV datasets</li>
+          <li>Clean, harmonize, engineer features</li>
+          <li>Train and serialize a regression model</li>
+        </ul>
+        <ul class="bullet-list" style="flex:1">
+          <li>Stream raw data through Kafka producer</li>
+          <li>Validate events &amp; run real-time inference</li>
+          <li>Store in a star schema, visualize with a BI tool</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 4 — SYSTEM ARCHITECTURE
+     ============================================================ -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">System Architecture</p>
+      <h2 class="reveal">Two Independent Processes</h2>
+      <div class="reveal two-col" style="margin-top:var(--content-gap)">
+        <div>
+          <h3>Offline — Model Training</h3>
+          <div class="arch-flow" style="margin-top:var(--element-gap)">
+            <div class="arch-box">Historical CSV Files</div>
+            <div class="arch-arrow">↓</div>
+            <div class="arch-box">EDA + Schema Harmonization</div>
+            <div class="arch-arrow">↓</div>
+            <div class="arch-box">Feature Engineering</div>
+            <div class="arch-arrow">↓</div>
+            <div class="arch-box">Train Random Forest</div>
+            <div class="arch-arrow">↓</div>
+            <div class="arch-box accent">Save model.pkl</div>
+          </div>
+        </div>
+        <div>
+          <h3>Streaming — Real-time Inference</h3>
+          <div class="arch-flow" style="margin-top:var(--element-gap)">
+            <div class="arch-box">Raw CSV Files</div>
+            <div class="arch-arrow">↓</div>
+            <div class="arch-box accent">Kafka Producer</div>
+            <div class="arch-arrow">↓</div>
+            <div class="arch-box">Kafka Topic</div>
+            <div class="arch-arrow">↓</div>
+            <div class="arch-box accent">Kafka Consumer</div>
+            <div class="arch-arrow">↓</div>
+            <div class="arch-box">Store Raw → Validate → Predict → Store Results</div>
+            <div class="arch-arrow">↓</div>
+            <div class="arch-box accent">Metabase Dashboard</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 5 — DATASET
+     ============================================================ -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">Dataset</p>
+      <h2 class="reveal">World Happiness Report <em>2015–2019</em></h2>
+      <div class="reveal two-col" style="margin-top:var(--content-gap)">
+        <div>
+          <h3>Files &amp; Variables</h3>
+          <ul class="bullet-list">
+            <li><strong>2015.csv</strong> — 158 rows, 12 columns</li>
+            <li><strong>2016.csv</strong> — 157 rows, 13 columns</li>
+            <li><strong>2017.csv</strong> — 155 rows, 12 columns</li>
+            <li><strong>2018.csv</strong> — 156 rows, 9 columns</li>
+            <li><strong>2019.csv</strong> — 156 rows, 9 columns</li>
+          </ul>
+        </div>
+        <div>
+          <h3 style="margin-top:0">⚠ Different Schemas</h3>
+          <p style="margin-top:var(--element-gap)">The datasets do NOT share exactly the same schema. Column naming
+            conventions, data types, and even the set of columns differ significantly across years.</p>
+          <ul class="bullet-list" style="margin-top:var(--element-gap)">
+            <li>Happiness score, GDP, health, family/social support</li>
+            <li>Freedom, corruption perception, generosity</li>
+            <li>Country &amp; year metadata</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 6 — EDA: DATA LOADING
+     ============================================================ -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">Part A · Step 1 — EDA</p>
+      <h2 class="reveal">Data Loading &amp; <em>First Look</em></h2>
+      <div class="reveal" style="margin-top:var(--content-gap);max-width:min(85vw,850px)">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Year</th>
+              <th>Rows</th>
+              <th>Columns</th>
+              <th>Missing</th>
+              <th>Duplicates</th>
+              <th>Has Region?</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="hl">2015</td>
+              <td>158</td>
+              <td>12</td>
+              <td>0</td>
+              <td>0</td>
+              <td>Yes</td>
+            </tr>
+            <tr>
+              <td class="hl">2016</td>
+              <td>157</td>
+              <td>13</td>
+              <td>0</td>
+              <td>0</td>
+              <td>Yes</td>
+            </tr>
+            <tr>
+              <td class="hl">2017</td>
+              <td>155</td>
+              <td>12</td>
+              <td>0</td>
+              <td>0</td>
+              <td><span class="badge red">No</span></td>
+            </tr>
+            <tr>
+              <td class="hl">2018</td>
+              <td>156</td>
+              <td>9</td>
+              <td><span class="badge red">1</span></td>
+              <td>0</td>
+              <td><span class="badge red">No</span></td>
+            </tr>
+            <tr>
+              <td class="hl">2019</td>
+              <td>156</td>
+              <td>9</td>
+              <td>0</td>
+              <td>0</td>
+              <td><span class="badge red">No</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="margin-top:var(--element-gap);font-size:var(--small-size)">
+          Key issues found: <span class="badge red">Only 1 missing value</span> across all years — <em>Perceptions of
+            corruption</em> for UAE in 2018 · <strong>Region</strong> only in 2015–2016 · 2017 dot-separated column
+          names · 2018–2019 completely renamed columns
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 7 — EDA: SCHEMA COMPARISON
+     ============================================================ -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">Part A · Step 1 — EDA</p>
+      <h2 class="reveal">Schema <em>Differences</em> Across Years</h2>
+      <div class="reveal" style="margin-top:var(--content-gap);max-width:min(88vw,900px)">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Concept</th>
+              <th>2015</th>
+              <th>2016</th>
+              <th>2017</th>
+              <th>2018–2019</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Happiness Score</td>
+              <td>Happiness Score</td>
+              <td>Happiness Score</td>
+              <td>Happiness<span style="color:var(--warn)">.</span>Score</td>
+              <td>Score</td>
+            </tr>
+            <tr>
+              <td>GDP</td>
+              <td>Economy (GDP per Capita)</td>
+              <td>Economy (GDP per Capita)</td>
+              <td>Economy<span style="color:var(--warn)">..</span>GDP<span style="color:var(--warn)">.</span>per<span
+                  style="color:var(--warn)">.</span>Capita<span style="color:var(--warn)">.</span></td>
+              <td>GDP per capita</td>
+            </tr>
+            <tr>
+              <td>Social Support</td>
+              <td>Family</td>
+              <td>Family</td>
+              <td>Family</td>
+              <td>Social support</td>
+            </tr>
+            <tr>
+              <td>Health</td>
+              <td>Health (Life Expectancy)</td>
+              <td>Health (Life Expectancy)</td>
+              <td>Health<span style="color:var(--warn)">..</span>Life<span
+                  style="color:var(--warn)">.</span>Expectancy<span style="color:var(--warn)">.</span></td>
+              <td>Healthy life expectancy</td>
+            </tr>
+            <tr>
+              <td>Corruption</td>
+              <td>Trust (Government Corruption)</td>
+              <td>Trust (Government Corruption)</td>
+              <td>Trust<span style="color:var(--warn)">..</span>Government<span
+                  style="color:var(--warn)">.</span>Corruption<span style="color:var(--warn)">.</span></td>
+              <td>Perceptions of corruption</td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="margin-top:var(--element-gap);font-size:var(--small-size)">
+          <span class="badge">Finding</span> 2015–2017 use <strong>parentheses and spaces</strong> in names · 2017 uses
+          <strong>dots instead of spaces</strong> · 2018–2019 use <strong>completely renamed columns</strong>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 8 — EDA: DATA QUALITY FINDINGS
+     ============================================================ -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">Part A · Step 1 — EDA</p>
+      <h2 class="reveal">Data Quality <em>Findings</em></h2>
+      <div class="reveal"
+        style="display:flex;flex-direction:column;gap:var(--content-gap);margin-top:var(--content-gap);max-width:min(85vw,800px)">
+        <p style="color:var(--text-primary)">✅ <strong>No duplicated rows</strong> in any dataset</p>
+        <p style="color:var(--text-primary)">✅ <strong>No major outliers</strong> in happiness scores (IQR bounds all
+          clear)</p>
+        <p style="color:var(--text-primary)">⚠ <strong>1 missing value</strong> — UAE 2018 <em>Perceptions of
+            corruption</em> = NaN</p>
+        <p style="color:var(--text-primary)">⚠ <strong>Country name variants</strong> across years: "Hong Kong" ↔ "Hong
+          Kong S.A.R., China", "Trinidad and Tobago" ↔ "Trinidad &amp; Tobago", "Macedonia" ↔ "North Macedonia"</p>
+        <p style="color:var(--text-primary)">⚠ <strong>Zero values</strong> in GDP, health, family for impoverished
+          nations (Somalia, Central African Republic, Sierra Leone) — <em>genuine values, not errors</em></p>
+        <p style="color:var(--text-primary)">⚠ <strong>Incompatible confidence columns</strong>: Standard Error (2015),
+          Confidence Intervals (2016), Whisker plots (2017) — <em>dropped</em></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 9 — DATA CLEANING
+     ============================================================ -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">Part A · Step 2 — Cleaning &amp; Harmonization</p>
+      <h2 class="reveal">Unified Schema <em>Design</em></h2>
+      <div class="reveal" style="margin-top:var(--content-gap);max-width:min(88vw,900px)">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Unified Name</th>
+              <th style="width:50%">Mapped From (22 original names → 9 unified)</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="hl">country</td>
+              <td>Country, Country or region</td>
+              <td>✅ Mapped</td>
+            </tr>
+            <tr>
+              <td class="hl">happiness_score</td>
+              <td>Happiness Score, Happiness.Score, Score</td>
+              <td>✅ Mapped</td>
+            </tr>
+            <tr>
+              <td class="hl">gdp</td>
+              <td>Economy (GDP per Capita), Economy..GDP.per.Capita., GDP per capita</td>
+              <td>✅ Mapped</td>
+            </tr>
+            <tr>
+              <td class="hl">family</td>
+              <td>Family, Social support</td>
+              <td>✅ Mapped</td>
+            </tr>
+            <tr>
+              <td class="hl">health</td>
+              <td>Health (Life Expectancy), Health..Life.Expectancy., Healthy life expectancy</td>
+              <td>✅ Mapped</td>
+            </tr>
+            <tr>
+              <td class="hl">freedom</td>
+              <td>Freedom, Freedom to make life choices</td>
+              <td>✅ Mapped</td>
+            </tr>
+            <tr>
+              <td class="hl">corruption</td>
+              <td>Trust (Government Corruption), Trust..Government.Corruption., Perceptions of corruption</td>
+              <td>✅ Mapped</td>
+            </tr>
+            <tr>
+              <td style="color:var(--warn)">Region</td>
+              <td>Region</td>
+              <td><span class="badge red">Dropped</span> (missing 2017+)</td>
+            </tr>
+            <tr>
+              <td style="color:var(--warn)">Confidence cols</td>
+              <td>Std Error, CI, Whisker.high/low</td>
+              <td><span class="badge red">Dropped</span> (incompatible)</td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="margin-top:var(--element-gap);font-size:var(--small-size)"><span class="badge green">Result</span> 782
+          rows × 11 columns (country, continent, year, happiness_rank, happiness_score, gdp, family, health, freedom,
+          generosity, corruption) · Continent added via country_converter</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 10 — FEATURE ENGINEERING
+     ============================================================ -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">Part A · Step 3 — Feature Engineering</p>
+      <h2 class="reveal">Feature <em>Selection &amp; Justification</em></h2>
+      <div class="reveal two-col" style="margin-top:var(--content-gap)">
+        <div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Feature</th>
+                <th>Corr. w/ Happiness</th>
+                <th>Keep?</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="hl">gdp</td>
+                <td>+0.78</td>
+                <td><span class="badge green">Yes</span></td>
+              </tr>
+              <tr>
+                <td class="hl">family</td>
+                <td>+0.74</td>
+                <td><span class="badge green">Yes</span></td>
+              </tr>
+              <tr>
+                <td class="hl">health</td>
+                <td>+0.72</td>
+                <td><span class="badge green">Yes</span></td>
+              </tr>
+              <tr>
+                <td>freedom</td>
+                <td>+0.57</td>
+                <td><span class="badge green">Yes</span></td>
+              </tr>
+              <tr>
+                <td>corruption</td>
+                <td>-0.38</td>
+                <td><span class="badge green">Yes</span></td>
+              </tr>
+              <tr>
+                <td>generosity</td>
+                <td>+0.11</td>
+                <td><span class="badge green">Yes</span></td>
+              </tr>
+              <tr>
+                <td>happiness_rank</td>
+                <td>-0.99</td>
+                <td><span class="badge red">No — leakage</span></td>
+              </tr>
+              <tr>
+                <td>country</td>
+                <td>—</td>
+                <td><span class="badge red">No — 170 cats</span></td>
+              </tr>
+              <tr>
+                <td>continent</td>
+                <td>—</td>
+                <td>Optional (excluded)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:var(--content-gap)">
+          <p style="color:var(--text-secondary)"><strong style="color:var(--text-primary)">Why 6 numeric
+              features?</strong> They match the Kafka JSON format exactly. The consumer extracts them directly — no
+            lookup, no extra complexity.</p>
+          <p style="color:var(--text-secondary)"><strong style="color:var(--text-primary)">Scaling:</strong>
+            StandardScaler applied post-split. Features are already in 0–2 range but scaling ensures consistency.</p>
+          <p style="color:var(--text-secondary)"><strong style="color:var(--text-primary)">Continent
+              experiment:</strong> Adding continent dummies improves R² by only +0.04. Not worth the consumer complexity
+            for a streaming pipeline.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 11 — MODEL TRAINING
+     ============================================================ -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">Part A · Step 4 — Model Training</p>
+      <h2 class="reveal">3 Models <em>Compared</em></h2>
+      <div class="reveal" style="margin-top:var(--content-gap);max-width:min(80vw,750px)">
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="label">Linear Regression</div>
+            <div class="value">0.74</div>
+            <div class="label">R²</div>
+            <p style="font-size:var(--small-size);margin-top:clamp(2px,0.3vw,6px);color:var(--text-secondary)">MAE: 0.43
+              · RMSE: 0.57</p>
+          </div>
+          <div class="stat-card">
+            <div class="label">Decision Tree</div>
+            <div class="value">0.72</div>
+            <div class="label">R²</div>
+            <p style="font-size:var(--small-size);margin-top:clamp(2px,0.3vw,6px);color:var(--text-secondary)">MAE: 0.49
+              · RMSE: 0.59</p>
+          </div>
+          <div class="stat-card" style="border-color:var(--accent);background:rgba(137,180,250,0.08)">
+            <div class="label">Random Forest <span class="badge green">Best</span></div>
+            <div class="value" style="color:var(--accent)">0.78</div>
+            <div class="label">R²</div>
+            <p style="font-size:var(--small-size);margin-top:clamp(2px,0.3vw,6px);color:var(--text-secondary)">MAE: 0.41
+              · RMSE: 0.52</p>
+          </div>
+        </div>
+        <p style="margin-top:var(--content-gap);text-align:center"><span class="badge green">Selected</span>
+          RandomForestRegressor · 100 estimators · max_depth=10 · random_state=42 · 70/30 split · Saved as
+          <strong>models/model.pkl</strong>
+        </p>
+        <p
+          style="margin-top:var(--element-gap);text-align:center;font-size:var(--small-size);color:var(--ctp-surface2)">
+          Reminder: this workshop is NOT focused on ML accuracy — the goal is <em>pipeline integration</em>, not model
+          optimization</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 12 — PART B INTRO
+     ============================================================ -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">Part B — Streaming ETL</p>
+      <h2 class="reveal">Apache Kafka <em>Pipeline</em></h2>
+      <div class="reveal" style="margin-top:var(--content-gap);max-width:min(80vw,700px)">
+        <div class="arch-flow-h"
+          style="display:flex;flex-direction:column;align-items:center;gap:clamp(0.2rem,0.4vh,0.4rem)">
+          <div class="arch-box accent">Producer (Python)</div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-box" style="border-color:var(--accent2);background:rgba(203,166,247,0.08)">Kafka Topic:
+            happiness-predictions</div>
+          <div class="arch-arrow">↓</div>
+          <div class="arch-box accent">Consumer (Python)</div>
+        </div>
+        <p style="margin-top:var(--content-gap);text-align:center;color:var(--text-secondary)">Infrastructure: <span
+            class="badge">Docker Compose</span> — Zookeeper (2181) + Kafka Broker (9092) + PostgreSQL (5433) + Metabase
+          (3000)</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 13 — KAFKA PRODUCER
+     ============================================================ -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">Part B · Step 5 — Kafka Producer</p>
+      <h2 class="reveal">Producer — <em>Streaming Raw Data</em></h2>
+      <div class="reveal two-col" style="margin-top:var(--content-gap)">
+        <div>
+          <h3>What it does</h3>
+          <ul class="bullet-list" style="margin-top:var(--element-gap)">
+            <li>Reads 5 <strong>raw</strong> CSV files from data/raw/</li>
+            <li>Maps 22 column names → 9 unified fields</li>
+            <li>No cleaning — raw values preserved</li>
+            <li>Converts NaN → null (valid JSON)</li>
+            <li>Streams each row one-by-one to Kafka</li>
+          </ul>
+          <h3 style="margin-top:var(--content-gap)">JSON Format</h3>
+          <div class="code-block">
+            <code><span class="str">{"country":</span><span class="str">"Colombia"</span>,<span class="str">"year":</span><span class="num">2019</span>,<br><span class="str">"gdp":</span><span class="num">1.2</span>,<span class="str">"family":</span><span class="num">0.8</span>,<span class="str">"health":</span><span class="num">0.9</span>,<br><span class="str">"freedom":</span><span class="num">0.6</span>,<span class="str">"generosity":</span><span class="num">0.3</span>,<br><span class="str">"corruption":</span><span class="num">0.1</span>,<br><span class="str">"actual_happiness_score":</span><span class="num">6.2</span>}</code>
+          </div>
+        </div>
+        <div>
+          <h3>Key details</h3>
+          <p style="margin-top:var(--element-gap);color:var(--text-secondary)">Uses <strong>kafka-python-ng</strong>
+            library · Topic: <span class="badge">happiness-predictions</span> · 0.5s delay between messages · 782 total
+            events · Country+year as message key for partitioning</p>
+          <h3 style="margin-top:var(--content-gap)">Why raw data?</h3>
+          <p style="margin-top:var(--element-gap);color:var(--text-secondary)">Part A (training) used cleaned data. Part
+            B (streaming) starts from scratch — this validates the consumer's ability to handle messy, unprocessed data
+            in real time.</p>
+          <p style="margin-top:var(--element-gap);font-size:var(--small-size);color:var(--ctp-surface2)">Includes the
+            UAE 2018 record with corruption=null — tests the validation pipeline</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 14 — KAFKA CONSUMER FLOW
+     ============================================================ -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">Part B · Step 6 — Kafka Consumer</p>
+      <h2 class="reveal">Consumer — <em>Processing Flow</em></h2>
+      <div class="reveal" style="margin-top:var(--content-gap)">
+        <ol class="flow-list">
+          <li><span class="flow-num">1</span> Receive event from Kafka topic</li>
+          <li><span class="flow-num">2</span> <strong>Store raw event immediately</strong> in raw_happiness_events
+            (status=RECEIVED)</li>
+          <li><span class="flow-num">3</span> Populate dim_raw_event dimension</li>
+          <li><span class="flow-num">4</span> Validate event schema &amp; values</li>
+          <li><span class="flow-num">5</span> <em>If invalid</em> → update status, skip prediction, continue</li>
+          <li><span class="flow-num">6</span> Extract features in model order: [gdp, family, health, freedom,
+            generosity, corruption]</li>
+          <li><span class="flow-num">7</span> Load model.pkl → model.predict()</li>
+          <li><span class="flow-num">8</span> UPSERT dim_country and dim_date</li>
+          <li><span class="flow-num">9</span> INSERT into fact_predictions with raw_event_id link</li>
+          <li><span class="flow-num">0</span> Mark as VALID</li>
+        </ol>
+        <p style="margin-top:var(--element-gap);font-size:var(--small-size);color:var(--ctp-surface2)">Key: raw events
+          stored <strong>before</strong> validation — supports traceability, auditing, and future reprocessing</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 15 — VALIDATION & ERROR HANDLING
+     ============================================================ -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">Part B · Step 6 — Consumer</p>
+      <h2 class="reveal">Validation &amp; <em>Error Handling</em></h2>
+      <div class="reveal two-col" style="margin-top:var(--content-gap)">
+        <div>
+          <h3>Validation Checks</h3>
+          <ul class="bullet-list" style="margin-top:var(--element-gap)">
+            <li>Missing required fields → <span class="badge red">INVALID_SCHEMA</span></li>
+            <li>Wrong data types (e.g., "year" as string) → <span class="badge red">INVALID_SCHEMA</span></li>
+            <li>Null/NaN in numeric features → <span class="badge red">INVALID_VALUES</span></li>
+            <li>Missing features required by the model → <span class="badge red">INVALID_VALUES</span></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Processing Statuses</h3>
+          <table class="data-table" style="margin-top:var(--element-gap)">
+            <tr>
+              <td class="hl">RECEIVED</td>
+              <td>Initial state, before validation</td>
+            </tr>
+            <tr>
+              <td class="hl"><span class="status valid">VALID</span></td>
+              <td>All checks passed · Prediction stored</td>
+            </tr>
+            <tr>
+              <td class="hl"><span class="status invalid">INVALID_SCHEMA</span></td>
+              <td>Missing field or wrong type</td>
+            </tr>
+            <tr>
+              <td class="hl"><span class="status invalid">INVALID_VALUES</span></td>
+              <td>Null in a required field</td>
+            </tr>
+            <tr>
+              <td class="hl"><span class="status error">PREDICTION_ERROR</span></td>
+              <td>Model prediction failed</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+      <div class="reveal" style="margin-top:var(--content-gap);max-width:min(85vw,750px)">
+        <p style="color:var(--text-primary);text-align:center">Invalid records are <strong>stored in the raw
+            table</strong> with their status, <strong>skipped from prediction</strong>, and <strong>never crash the
+            pipeline</strong>.</p>
+        <div style="display:flex;gap:clamp(1rem,2vw,2rem);margin-top:var(--element-gap);justify-content:center">
+          <p><span class="badge green">781 VALID</span> predictions stored</p>
+          <p><span class="badge red">1 INVALID_VALUES</span> — UAE 2018 (corruption=null)</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 16 — STAR SCHEMA DB DESIGN
+     ============================================================ -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">Part C · Step 7 — Database Design</p>
+      <h2 class="reveal">Star Schema <em>Data Model</em></h2>
+      <div class="reveal" style="margin-top:var(--content-gap);max-width:min(88vw,950px)">
+        <table class="schema-table">
+          <thead>
+            <tr>
+              <th>Table</th>
+              <th>Type</th>
+              <th>Rows</th>
+              <th>Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="hl">raw_happiness_events</td>
+              <td>Raw Table</td>
+              <td>782</td>
+              <td>Original Kafka messages + processing_status + raw_payload (JSONB)</td>
+            </tr>
+            <tr>
+              <td class="hl">dim_raw_event</td>
+              <td>Dimension</td>
+              <td>782</td>
+              <td>Links fact to raw event metadata (received_at, status)</td>
+            </tr>
+            <tr>
+              <td class="hl">dim_country</td>
+              <td>Dimension</td>
+              <td>170</td>
+              <td>Country name → country_id lookup</td>
+            </tr>
+            <tr>
+              <td class="hl">dim_date</td>
+              <td>Dimension</td>
+              <td>5</td>
+              <td>Year → date_id lookup</td>
+            </tr>
+            <tr>
+              <td class="hl" style="color:var(--accent)">fact_predictions</td>
+              <td>Fact Table</td>
+              <td>781</td>
+              <td>actual_score, predicted_score, prediction_error, prediction_timestamp</td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="margin-top:var(--content-gap);text-align:center">
+          <strong style="color:var(--text-primary)">Entity Relationship:</strong> fact_predictions.raw_event_id →
+          raw_happiness_events · fact_predictions.country_id → dim_country · fact_predictions.date_id → dim_date
+        </p>
+        <p
+          style="margin-top:var(--element-gap);text-align:center;font-size:var(--small-size);color:var(--ctp-surface2)">
+          Each prediction can be traced back to the exact raw event that produced it</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 17 — LOADING RESULTS
+     ============================================================ -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">Part C · Step 8 — Loading Results</p>
+      <h2 class="reveal">Pipeline <em>Results</em></h2>
+      <div class="reveal" style="margin-top:var(--content-gap)">
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="value">782</div>
+            <div class="label">Events streamed</div>
+          </div>
+          <div class="stat-card">
+            <div class="value">170</div>
+            <div class="label">Countries tracked</div>
+          </div>
+          <div class="stat-card">
+            <div class="value">5</div>
+            <div class="label">Years covered</div>
+          </div>
+        </div>
+        <div class="two-col" style="margin-top:var(--content-gap);max-width:min(80vw,750px)">
+          <div class="stat-card">
+            <div class="label">MAE</div>
+            <div class="value">1.14</div>
+            <div class="label">Mean Absolute Error</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">Mean Error</div>
+            <div class="value" style="color:var(--warn)">-1.01</div>
+            <div class="label">Model slightly underestimates</div>
+          </div>
+        </div>
+        <p style="margin-top:var(--content-gap);text-align:center;color:var(--text-primary)">
+          <span class="badge green">781 valid predictions</span> stored · <span class="badge red">1 rejected</span> (UAE
+          2018) · <span class="badge mauve">782 raw events</span> preserved with full traceability
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 18 — METABASE DASHBOARD
+     ============================================================ -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">Part C · Step 9 — Dashboard &amp; KPIs</p>
+      <h2 class="reveal">Metabase <em>Dashboard</em></h2>
+      <div class="reveal"
+        style="margin-top:var(--content-gap);display:flex;align-items:center;gap:clamp(1rem,2vw,2rem);max-width:min(95vw,1100px)">
+        <div style="flex:1;min-width:220px">
+          <h3>4 Key KPIs</h3>
+          <ol class="flow-list" style="margin-top:var(--element-gap)">
+            <li><span class="flow-num">1</span> Average prediction error (MAE)</li>
+            <li><span class="flow-num">2</span> Predictions by country (bar chart)</li>
+            <li><span class="flow-num">3</span> Predicted vs actual score (scatter plot)</li>
+            <li><span class="flow-num">4</span> Trends over time (2015–2019 line chart)</li>
+          </ol>
+          <p style="margin-top:var(--content-gap);color:var(--text-secondary);font-size:var(--small-size)">
+            <strong style="color:var(--text-primary)">BI Tool:</strong> Metabase — self-hosted in Docker · Connects
+            directly to PostgreSQL on Docker network · Queries the database, NOT CSV files
+          </p>
+          <p style="margin-top:var(--element-gap);color:var(--text-secondary);font-size:var(--small-size)">
+            Alternatives: Looker Studio, Tableau, Power BI · Chose Metabase for zero-cost, local-first, Linux-native
+            setup
+          </p>
+        </div>
+        <div style="flex:1.3;text-align:center">
+          <img src="dashboards/Happiness%20Predictions%20KPIs.png" alt="Metabase Dashboard"
+            style="max-height:min(52vh,420px);max-width:100%;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,0.4)">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 19 — TOOLS & TECH STACK
+     ============================================================ -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">Tech Stack</p>
+      <h2 class="reveal">Tools &amp; <em>Frameworks</em></h2>
+      <div class="reveal" style="margin-top:var(--content-gap);max-width:min(85vw,900px)">
+        <div class="two-col">
+          <div>
+            <h3>Infrastructure</h3>
+            <table class="data-table" style="margin-top:var(--element-gap)">
+              <tr>
+                <td class="hl">Apache Kafka</td>
+                <td>Confluent 7.6.1 (Docker)</td>
+              </tr>
+              <tr>
+                <td class="hl">PostgreSQL</td>
+                <td>16 (Docker, port 5433)</td>
+              </tr>
+              <tr>
+                <td class="hl">Zookeeper</td>
+                <td>7.6.1 (Docker)</td>
+              </tr>
+              <tr>
+                <td class="hl">Metabase</td>
+                <td>Dashboard &amp; BI (Docker)</td>
+              </tr>
+              <tr>
+                <td class="hl">Docker Compose</td>
+                <td>4-services orchestration</td>
+              </tr>
+            </table>
+            <h3 style="margin-top:var(--content-gap)">ML &amp; Data</h3>
+            <table class="data-table" style="margin-top:var(--element-gap)">
+              <tr>
+                <td class="hl">scikit-learn</td>
+                <td>RandomForestRegressor</td>
+              </tr>
+              <tr>
+                <td class="hl">Pandas</td>
+                <td>Data manipulation</td>
+              </tr>
+              <tr>
+                <td class="hl">Joblib</td>
+                <td>Model serialization</td>
+              </tr>
+              <tr>
+                <td class="hl">SQLAlchemy</td>
+                <td>Database ORM</td>
+              </tr>
+            </table>
+          </div>
+          <div>
+            <table class="data-table" style="margin-top:0">
+              <tr>
+                <td class="hl">kafka-python-ng</td>
+                <td>Kafka client library</td>
+              </tr>
+              <tr>
+                <td class="hl">plotly</td>
+                <td>Interactive charts</td>
+              </tr>
+              <tr>
+                <td class="hl">matplotlib</td>
+                <td>Static visualizations</td>
+              </tr>
+              <tr>
+                <td class="hl">seaborn</td>
+                <td>Statistical plots</td>
+              </tr>
+              <tr>
+                <td class="hl">country-converter</td>
+                <td>Country → continent mapping</td>
+              </tr>
+              <tr>
+                <td class="hl">python-dotenv</td>
+                <td>Environment variables</td>
+              </tr>
+            </table>
+            <h3 style="margin-top:var(--content-gap)">Development</h3>
+            <table class="data-table" style="margin-top:var(--element-gap)">
+              <tr>
+                <td class="hl">Python 3.12</td>
+                <td>Runtime</td>
+              </tr>
+              <tr>
+                <td class="hl">uv</td>
+                <td>Package manager</td>
+              </tr>
+              <tr>
+                <td class="hl">Jupyter</td>
+                <td>Notebooks (EDA + Training)</td>
+              </tr>
+              <tr>
+                <td class="hl">GitHub</td>
+                <td>Version control</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 20 — KEY DECISIONS
+     ============================================================ -->
+  <section class="slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <p class="reveal section-header">Key Decisions</p>
+      <h2 class="reveal">Design <em>Tradeoffs &amp; Takeaways</em></h2>
+      <div class="reveal"
+        style="margin-top:var(--content-gap);max-width:min(80vw,750px);display:flex;flex-direction:column;gap:var(--content-gap)">
+        <div class="card" style="border-left:clamp(3px,0.4vw,5px) solid var(--accent)">
+          <p style="color:var(--text-primary)"><strong>6 features over continent encoding.</strong> Adding continent
+            improved R² by only +0.04, but requires a country→continent lookup in the consumer. Pipeline simplicity won.
+          </p>
+        </div>
+        <div class="card" style="border-left:clamp(3px,0.4vw,5px) solid var(--accent2)">
+          <p style="color:var(--text-primary)"><strong>Raw events stored before validation.</strong> This supports
+            traceability, auditing, and reprocessing if prediction rules change. Invalid events are preserved, not
+            discarded.</p>
+        </div>
+        <div class="card" style="border-left:clamp(3px,0.4vw,5px) solid var(--accent3)">
+          <p style="color:var(--text-primary)"><strong>Star schema for analytical queries.</strong> Three dimensions
+            (country, date, raw_event) feed a single fact table. This is the standard pattern for BI and analytical
+            workloads.</p>
+        </div>
+        <div class="card" style="border-left:clamp(3px,0.4vw,5px) solid var(--ctp-peach)">
+          <p style="color:var(--text-primary)"><strong>Graceful error handling.</strong> The consumer never crashes on
+            bad data. DB connection drops trigger automatic reconnection. Invalid events are logged and skipped.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+     SLIDE 21 — THANK YOU
+     ============================================================ -->
+  <section class="slide thankyou-slide">
+    <div class="slide-content">
+      <div class="accent-bar"></div>
+      <div class="reveal circle" style="position:absolute;top:clamp(1rem,3vw,3rem);left:clamp(1rem,3vw,3rem)"></div>
+      <h1 class="reveal"><em>Thank You</em></h1>
+      <p class="reveal subtitle" style="font-size:var(--h3-size);margin-top:var(--content-gap)">Streaming ETL with
+        Apache Kafka &amp; Machine Learning</p>
+      <p class="reveal" style="color:var(--text-secondary);margin-top:var(--content-gap)">Workshop 3 · ETL G01 · 2026-1
+      </p>
+      <p class="reveal" style="color:var(--ctp-surface2);margin-top:var(--content-gap);font-size:var(--small-size)">
+        GitHub: <span style="color:var(--accent)">github.com/jpgomezv/workshop03.git</span>
+      </p>
+    </div>
+  </section>
+
+
+  <script>
+    /* ===========================================
+       SLIDE PRESENTATION CONTROLLER
+       =========================================== */
+    class SlidePresentation {
+      constructor() {
+        this.slides = Array.from(document.querySelectorAll('.slide'));
+        this.currentSlide = 0;
+        this.setupIntersectionObserver();
+        this.setupKeyboardNav();
+        this.setupMouseWheel();
+        this.setupProgressBar();
+        this.setupNavDots();
+      }
+
+      setupIntersectionObserver() {
+        if ('IntersectionObserver' in window) {
+          const opts = { threshold: 0.4 };
+          const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+              if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+                this.currentSlide = this.slides.indexOf(entry.target);
+                this.updateProgressBar();
+                this.updateNavDots();
+              }
+            });
+          }, opts);
+          this.slides.forEach(s => observer.observe(s));
+        }
+      }
+
+      setupKeyboardNav() {
+        document.addEventListener('keydown', e => {
+          if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+            e.preventDefault();
+            this.goTo(this.currentSlide + 1);
+          } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'PageUp') {
+            e.preventDefault();
+            this.goTo(this.currentSlide - 1);
+          } else if (e.key === 'Home') { e.preventDefault(); this.goTo(0); }
+          else if (e.key === 'End') { e.preventDefault(); this.goTo(this.slides.length - 1); }
+        });
+      }
+
+      setupMouseWheel() {
+        let wheelTimer = 0;
+        document.addEventListener('wheel', e => {
+          const now = Date.now();
+          if (now - wheelTimer < 800) return;
+          wheelTimer = now;
+          if (e.deltaY > 30) this.goTo(this.currentSlide + 1);
+          else if (e.deltaY < -30) this.goTo(this.currentSlide - 1);
+        }, { passive: true });
+      }
+
+      setupProgressBar() {
+        this.progressBar = document.querySelector('.progress-bar');
+      }
+
+      setupNavDots() {
+        this.dotsContainer = document.getElementById('navDots');
+        this.dotsContainer.innerHTML = '';
+        this.slides.forEach((_, i) => {
+          const dot = document.createElement('button');
+          dot.className = 'nav-dot' + (i === 0 ? ' active' : '');
+          dot.setAttribute('aria-label', 'Slide ' + (i + 1));
+          dot.addEventListener('click', () => this.goTo(i));
+          this.dotsContainer.appendChild(dot);
+        });
+      }
+
+      goTo(index) {
+        if (index < 0 || index >= this.slides.length) return;
+        this.slides[index].scrollIntoView({ behavior: 'smooth' });
+      }
+
+      updateProgressBar() {
+        const pct = (this.currentSlide / (this.slides.length - 1)) * 100;
+        if (this.progressBar) this.progressBar.style.width = pct + '%';
+      }
+
+      updateNavDots() {
+        Array.from(this.dotsContainer.children).forEach((d, i) => {
+          d.classList.toggle('active', i === this.currentSlide);
+        });
+      }
+    }
+
+    new SlidePresentation();
+  </script>
+</body>
+
+</html>
