@@ -25,3 +25,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+#Understand anything (idk, tried using it on this project to check how it works)
+.understand-anything/
