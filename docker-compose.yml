@@ -7,18 +7,12 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
-    healthcheck:
-      test: ["CMD", "bash", "-c", "echo ruok | nc localhost 2181 | grep imok"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
 
   kafka:
     image: confluentinc/cp-kafka:7.6.1
     container_name: kafka
     depends_on:
-      zookeeper:
-        condition: service_healthy
+      - zookeeper
     ports:
       - "9092:9092"
     environment:
@@ -63,8 +57,7 @@ services:
       MB_DB_PASS: ${POSTGRES_PASSWORD}
       MB_DB_HOST: postgres
     depends_on:
-      postgres:
-        condition: service_healthy
+      - postgres
     volumes:
       - metabase-data:/metabase-data
 
